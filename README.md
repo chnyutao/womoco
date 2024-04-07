@@ -3,5 +3,5 @@
 🌏 Exploiting **WO**rld **MO**dels for **CO**ntinual reinforcement learning.
 
 ```sh
-conda env create -f environment.yml
+pip install -r requirements.txt  # with python=3.10.0
 ```
