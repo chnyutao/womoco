@@ -19,33 +19,42 @@ class MetricsCallback(BaseCallback):
         return self.training_env.get_attr('spec')[0].id
 
     def evaluate(self) -> None:
+        kwargs = {'n_eval_episodes': 1, 'deterministic': False}
         for env in self.envs:
-            reward, _ = evaluate_policy(self.model, env, n_eval_episodes=5)
-            wandb.log({f'{env.spec.id}/eval': reward}, step=self.num_timesteps)
-            # log agent video in the current train env
+            # log agent video & reward in the current train env
             if env.spec.id == self.env_id:
                 frames = []
                 callback = lambda ls, gs: frames.append(env.render().transpose(2, 0, 1))
-                _, _ = evaluate_policy(self.model, env, n_eval_episodes=1, callback=callback)
+                reward, _ = evaluate_policy(self.model, env, callback=callback, **kwargs)
                 wandb.log({
+                    f'{env.spec.id}/eval': reward,
                     f'{self.env_id}/video': wandb.Video(np.array(frames[:-1]))
                 }, step=self.num_timesteps)
+            # log only reward in other evaluation envs
+            else:
+                reward, _ = evaluate_policy(self.model, env, **kwargs)
+                wandb.log({f'{env.spec.id}/eval': reward}, step=self.num_timesteps)
 
     def _on_step(self) -> bool:
-        # log current env stats every episode
-        infos: Dict[str, Any] = self.locals['infos'][0]
-        if 'episode' in infos:
-            self.n_episodes += 1
+        infos: List[Dict[str, Any]] = self.locals['infos']
+        # log length/reward every episode
+        length = np.mean([info['episode']['l'] for info in infos if 'episode' in info])
+        reward = np.mean([info['episode']['r'] for info in infos if 'episode' in info])
+        if not np.isnan(length) and not np.isnan(reward):
             wandb.log({
-                f'{self.env_id}/length': infos['episode']['l'],
-                f'{self.env_id}/reward': infos['episode']['r']
+                f'{self.env_id}/length': length,
+                f'{self.env_id}/reward': reward
             }, step=self.num_timesteps)
-         # evaluate on all envs using caped cubic schedule (1, 8, 27, ...)
-        if 'episode' in infos and capped_cubic_video_schedule(self.n_episodes):
-            self.evaluate()
+        # run evaluation on all envs using cubic schedule
+        for info in infos:
+            if 'episode' in info:
+                self.n_episodes += 1
+                if capped_cubic_video_schedule(self.n_episodes):
+                    self.evaluate()
         return True
 
     def _on_training_start(self) -> None:
+        self.n_episodes = 0
         return self.evaluate()
 
     def _on_training_end(self) -> None:
