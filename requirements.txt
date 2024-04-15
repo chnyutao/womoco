@@ -1,4 +1,4 @@
-gymnasium[other]==0.28.1
+gymnasium==0.29.1
 minigrid==2.3.1
-stable_baselines3[extra]==2.3.0
+torchrl==0.3.1
 wandb==0.16.6
