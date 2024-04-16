@@ -1,28 +1,35 @@
-import gymnasium as gym
-from minigrid.wrappers import ImgObsWrapper, RGBImgPartialObsWrapper
+import os
+from unittest.mock import patch
+
+import torch
 from torchrl.envs import EnvBase, GymWrapper, ParallelEnv
 from torchrl.envs.transforms import ToTensorImage, TransformedEnv
 
+DeviceType = str | torch.device
 
-class MinigridEnv(GymWrapper):
+
+class MinigridEnv(TransformedEnv):
     """Minigrid environments with partially observable, pixel observations."""
 
-    def __init__(self, env_name: str) -> None:
-        env = gym.make(env_name, render_mode='rgb_array')
+    def __init__(self, env_name: str, device: DeviceType = 'cpu') -> None:
+        # patching to disable pygame messages
+        with patch.dict(os.environ, {'PYGAME_HIDE_SUPPORT_PROMPT': 'hide'}):
+            import gymnasium
+            from minigrid.wrappers import ImgObsWrapper, RGBImgPartialObsWrapper
+        env = gymnasium.make(env_name, render_mode='rgb_array')
         env = RGBImgPartialObsWrapper(env)
         env = ImgObsWrapper(env)
         _ = env.reset()  # required for init gym wrapper
-        super().__init__(env)
-
-    @staticmethod
-    def make(env_name: str) -> EnvBase:
-        """Make a single minigrid environment."""
-        return TransformedEnv(
-            env=MinigridEnv(env_name),
+        env = GymWrapper(env)
+        super().__init__(
+            env=env,
             transform=ToTensorImage(in_keys=['pixels']),
+            device=device,
         )
 
     @staticmethod
-    def make_parallel(env_name: str, num_envs: int) -> EnvBase:
+    def make_parallel(
+        env_name: str, *, n_envs: int = 4, device: DeviceType = 'cpu'
+    ) -> EnvBase:
         """Make `num_envs` parallel minigrid environments."""
-        return ParallelEnv(num_envs, lambda: MinigridEnv.make(env_name))
+        return ParallelEnv(n_envs, lambda: MinigridEnv(env_name, device))
