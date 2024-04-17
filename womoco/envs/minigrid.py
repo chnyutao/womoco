@@ -1,11 +1,10 @@
 import os
 from unittest.mock import patch
 
-import torch
 from torchrl.envs import EnvBase, GymWrapper, ParallelEnv
 from torchrl.envs.transforms import ToTensorImage, TransformedEnv
 
-DeviceType = str | torch.device
+from womoco.typing import DeviceType
 
 
 class MinigridEnv(TransformedEnv):

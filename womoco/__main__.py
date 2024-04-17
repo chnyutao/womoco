@@ -4,6 +4,7 @@ import tyro
 
 from .config import Config
 from .envs import MinigridEnv
+from .models import PPO
 
 warnings.filterwarnings('ignore')
 
@@ -14,4 +15,6 @@ if __name__ == '__main__':
         n_envs=config.n_envs,
         device=config.device,
     )
-    print(env.rollout(10))
+    model = PPO(env.action_spec, device=config.device)
+    print(model.get_policy_operator()(env.reset()))
+    print(model.get_value_operator()(env.reset()))
