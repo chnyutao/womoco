@@ -1,6 +1,9 @@
 import warnings
 
 import tyro
+from torch.optim import Adam
+from torchrl.collectors import SyncDataCollector
+from tqdm.auto import tqdm
 
 from .config import Config
 from .envs import MinigridEnv
@@ -15,6 +18,23 @@ if __name__ == '__main__':
         n_envs=config.n_envs,
         device=config.device,
     )
-    model = PPO(env.action_spec, device=config.device)
-    print(model.get_policy_operator()(env.reset()))
-    print(model.get_value_operator()(env.reset()))
+    model = PPO(env, device=config.device)
+    optimizer = Adam(model.parameters(), lr=1e-4)
+    collector = SyncDataCollector(
+        env,
+        policy=model.policy,
+        frames_per_batch=config.n_envs * 100,
+        total_frames=int(1e6),
+        split_trajs=False,
+        device=config.device,
+    )
+    for data in tqdm(collector):
+        data.to(config.device)
+        for _ in range(5):
+            model.advantage(data)
+            info = model.forward(data)
+            loss = info['loss_objective'] + info['loss_critic'] + info['loss_entropy']
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+        print(f'loss: {loss.item()}\treward: {data["next", "reward"].mean()}')
