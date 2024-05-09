@@ -1,34 +1,35 @@
-import os
-from unittest.mock import patch
+from typing import Any
 
-from torchrl.envs import EnvBase, GymWrapper, ParallelEnv
-from torchrl.envs.transforms import ToTensorImage, TransformedEnv
+import gymnasium
+from gymnasium.wrappers.pixel_observation import PixelObservationWrapper
+from torchrl.envs import GymWrapper, ParallelEnv
+from torchrl.envs.transforms import Compose, Resize, ToTensorImage, TransformedEnv
 
-from womoco.typing import DeviceType
+from womoco.typing import Device, Env
 
 
 class MinigridEnv(TransformedEnv):
-    """Minigrid environments with partially observable, pixel observations."""
+    """Minigrid environments with fully observable, pixel observations."""
 
-    def __init__(self, env_name: str, device: DeviceType = 'cpu') -> None:
-        # patching to disable pygame messages
-        with patch.dict(os.environ, {'PYGAME_HIDE_SUPPORT_PROMPT': 'hide'}):
-            import gymnasium
-            from minigrid.wrappers import ImgObsWrapper, RGBImgPartialObsWrapper
-        env = gymnasium.make(env_name, render_mode='rgb_array')
-        env = RGBImgPartialObsWrapper(env)
-        env = ImgObsWrapper(env)
-        _ = env.reset()  # required for init gym wrapper
-        env = GymWrapper(env)
+    def __init__(self, env_name: str, *, device: Device = 'cpu') -> None:
+        env = gymnasium.make(env_name, render_mode='rgb_array', highlight=False)
+        env = PixelObservationWrapper(env, pixels_only=True)
+        env = GymWrapper(env, device=device)
         super().__init__(
             env=env,
-            transform=ToTensorImage(in_keys=['pixels']),
+            transform=Compose(
+                ToTensorImage(in_keys=['pixels']),
+                Resize(72, 72, in_keys=['pixels']),
+            ),
             device=device,
         )
 
     @staticmethod
-    def make_parallel(
-        env_name: str, *, n_envs: int = 4, device: DeviceType = 'cpu'
-    ) -> EnvBase:
+    def make_parallel(env_name: str, *, n_envs: int = 4, **kwargs: Any) -> Env:
         """Make `num_envs` parallel minigrid environments."""
-        return ParallelEnv(n_envs, lambda: MinigridEnv(env_name, device))
+        return ParallelEnv(
+            n_envs,
+            lambda: MinigridEnv(env_name, **kwargs),
+            serial_for_single=True,
+            mp_start_method='fork',  # spawn is incompatible with wandb
+        )

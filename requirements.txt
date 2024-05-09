@@ -1,6 +1,8 @@
 gymnasium==0.29.1
 minigrid==2.3.1
-torchrl==0.3.1
-tqdm==4.66.2
+tensordict @ git+https://github.com/pytorch/tensordict.git@v0.4.0
+torchrl @ git+https://github.com/pytorch/rl.git@v0.4.0
+torchvision==0.17.2
+tqdm==4.66.4
 tyro==0.8.3
-wandb==0.16.6
+wandb==0.17.0

@@ -1,3 +1,5 @@
 import torch
+import torchrl.envs
 
-DeviceType = str | torch.device
+Env = torchrl.envs.EnvBase
+Device = str | torch.device
