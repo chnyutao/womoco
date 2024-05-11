@@ -1,22 +1,17 @@
 from tensordict import TensorDictBase
-from tensordict.nn import (
-    TensorDictModule,
-    TensorDictModuleBase,
-    TensorDictSequential,
-)
+from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch.distributions import OneHotCategorical
-from torchrl.envs import EnvBase
 from torchrl.modules import MLP, ConvNet, ProbabilisticActor
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 
-from womoco.typing import DeviceType
+from womoco.typing import Device, Env, Model
 
 
-class PPO(TensorDictModuleBase):
-    """Proximal policy optimization (PPO) modules."""
+class PPO(Model):
+    """Proximal policy optimization (PPO)."""
 
-    def __init__(self, env: EnvBase, device: DeviceType = 'cpu') -> None:
+    def __init__(self, env: Env, device: Device = 'cpu') -> None:
         super().__init__()
         # common feature extractor
         common = ConvNet(num_cells=[16, 32, 64], kernel_sizes=3, strides=2).to(device)
@@ -39,17 +34,11 @@ class PPO(TensorDictModuleBase):
         value = TensorDictModule(value, in_keys=['hidden'], out_keys=['state_value'])
         self.value = TensorDictSequential(common, value)
         _ = self.value(env.reset())
-        # advantage head
-        # TODO allow config advantage hyperparams
-        self.advantage = GAE(
-            gamma=0.99,
-            lmbda=0.95,
-            value_network=self.value,
-            average_gae=True,
-        )
         # loss function
-        # TODO allow config ppo hyperparams
+        # TODO allow config advantage & ppo loss params
+        advantage = GAE(gamma=0.99, lmbda=0.95, value_network=self.value, average_gae=True)
         self.loss = ClipPPOLoss(self.policy, self.value)
+        self.loss.register_forward_pre_hook(lambda _, args: advantage(args[0]))
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         return self.loss(tensordict)
