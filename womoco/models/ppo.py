@@ -1,3 +1,4 @@
+from torch.optim import Optimizer
 from tensordict import TensorDictBase
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch.distributions import OneHotCategorical
@@ -40,5 +41,13 @@ class PPO(Model):
         self.loss = ClipPPOLoss(self.policy, self.value)
         self.loss.register_forward_pre_hook(lambda _, args: advantage(args[0]))
 
-    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-        return self.loss(tensordict)
+    def forward(self, x: TensorDictBase) -> TensorDictBase:
+        return self.loss(x)
+
+    def step(self, x: TensorDictBase, opt: Optimizer) -> None:
+        """Update model params once with graident descent."""
+        info = self.forward(x)
+        loss = info['loss_critic'] + info['loss_entropy'] + info['loss_objective']
+        loss.backward()
+        opt.step()
+        opt.zero_grad()

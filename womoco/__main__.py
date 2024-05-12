@@ -1,40 +1,41 @@
 import warnings
 
 import tyro
-from torch.optim import Adam
-from torchrl.collectors import SyncDataCollector
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
+import wandb
+
+from .common.utils import make_collector, make_envs, make_model, make_opt, make_replay_buffer
 from .config import Config
-from .envs import MinigridEnv
-from .models import PPO
 
 warnings.filterwarnings('ignore')
 
-if __name__ == '__main__':
-    config = tyro.cli(Config)
-    env = MinigridEnv.make_parallel(
-        env_name='MiniGrid-Empty-5x5-v0',
-        n_envs=config.n_envs,
-        device=config.device,
-    )
-    model = PPO(env, device=config.device)
-    optimizer = Adam(model.parameters(), lr=1e-4)
-    collector = SyncDataCollector(
-        env,
-        policy=model.policy,
-        frames_per_batch=config.n_envs * 100,
-        total_frames=int(1e6),
-        split_trajs=False,
-        device=config.device,
-    )
-    for data in tqdm(collector):
-        data.to(config.device)
-        for _ in range(5):
-            model.advantage(data)
-            info = model.forward(data)
-            loss = info['loss_objective'] + info['loss_critic'] + info['loss_entropy']
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-        print(f'loss: {loss.item()}\treward: {data["next", "reward"].mean()}')
+# parse cmd flags
+config = tyro.cli(Config)
+
+# init logging
+run = wandb.init(config=config.as_dict(), project='womoco')
+
+# init envs
+envs = make_envs(config)
+
+# init model & opt
+model = make_model(envs[0], config)
+opt = make_opt(model, config)
+
+# init replay buffer
+replay_buffer = make_replay_buffer(config)
+
+# main loop
+for env in envs:
+    progress = tqdm(total=config.env.n_frames)
+    collector = make_collector(env, model, config)
+    while (data := collector.next()) is not None:
+        progress.update(data.numel())
+        replay_buffer.extend(data)
+        wandb.log({f'{env.name}/reward': data['next', 'reward'][data['next', 'done'].flatten()].mean()})
+        for _ in range(config.n_updates):
+            samples = replay_buffer.sample()
+            model.step(samples, opt)
+    collector.shutdown()
+    progress.close()
