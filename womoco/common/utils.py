@@ -38,7 +38,7 @@ def make_model(env: Env, config: Config) -> Model:
 
 
 def make_opt(model: Model, config: Config) -> Optimizer:
-    params = model.get_submodule('policy').parameters()
+    params = model.parameters()
     kwargs: Dict[str, Any] = {'lr': config.opt.lr, 'weight_decay': config.opt.weight_decay}
     match config.opt.name:
         case 'Adam':
