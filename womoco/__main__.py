@@ -37,7 +37,7 @@ for env in envs:
         progress.update(data.numel())
         replay_buffer.extend(data)
         for _ in range(config.n_updates):
-            samples = replay_buffer.sample()
+            samples = replay_buffer.sample().to(config.device)
             model.step(samples, opt)
         logger.log(env, data, step=progress.n)
     collector.shutdown()

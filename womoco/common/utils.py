@@ -18,6 +18,9 @@ def make_collector(env: Env, model: Model, config: Config) -> MultiaSyncDataColl
         model.get_submodule('policy'),
         frames_per_batch=config.env.step_size * config.env.n_envs,
         total_frames=config.env.n_frames,
+        storing_device='cpu',
+        env_device=config.device,
+        policy_device=config.device,
     )
 
 
