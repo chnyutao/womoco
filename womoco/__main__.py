@@ -39,6 +39,6 @@ for env in envs:
         for _ in range(config.n_updates):
             samples = replay_buffer.sample().to(config.device)
             model.step(samples, opt)
-        logger.log(env, data, step=progress.n)
+        logger.log(env, data)
     collector.shutdown()
     progress.close()

@@ -46,7 +46,7 @@ class Config:
     """evaluation frequency"""
     n_updates: int = 8
     """number of parameter updates after each collection step"""
-    replay_size: int = 1024
+    replay_size: int = 512
     """replay buffer maximum size"""
 
     env: EnvConfig = field(default_factory=EnvConfig)
