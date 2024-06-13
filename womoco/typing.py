@@ -17,7 +17,8 @@ class Model(ABC, TensorDictModuleBase):
 class Env(ABC, TransformedEnv):
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def id(self) -> str: ...
 
 
 Device = str | torch.device
+TensorDict = TensorDictBase

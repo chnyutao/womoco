@@ -1,12 +1,12 @@
-from torch.optim import Optimizer
-from tensordict import TensorDictBase
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch.distributions import OneHotCategorical
+from torch.nn.utils import clip_grad_norm
+from torch.optim import Optimizer
 from torchrl.modules import MLP, ConvNet, ProbabilisticActor
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 
-from womoco.typing import Device, Env, Model
+from womoco.typing import Device, Env, Model, TensorDict
 
 
 class PPO(Model):
@@ -41,13 +41,14 @@ class PPO(Model):
         self.loss = ClipPPOLoss(self.policy, self.value)
         self.loss.register_forward_pre_hook(lambda _, args: advantage(args[0]))
 
-    def forward(self, x: TensorDictBase) -> TensorDictBase:
+    def forward(self, x: TensorDict) -> TensorDict:
         return self.loss(x)
 
-    def step(self, x: TensorDictBase, opt: Optimizer) -> None:
+    def step(self, x: TensorDict, opt: Optimizer) -> None:
         """Update model params once with graident descent."""
+        opt.zero_grad()
         info = self.forward(x)
         loss = info['loss_critic'] + info['loss_entropy'] + info['loss_objective']
         loss.backward()
+        clip_grad_norm(self.parameters(), 1.0)
         opt.step()
-        opt.zero_grad()

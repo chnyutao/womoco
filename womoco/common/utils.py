@@ -14,21 +14,21 @@ from womoco.typing import Env, Model
 
 def make_collector(env: Env, model: Model, config: Config) -> MultiaSyncDataCollector:
     return MultiaSyncDataCollector(
-        [lambda: make_env(env.name, config)] * config.env.n_envs,
+        [lambda: make_env(env.id, config)] * config.env.n_envs,
         model.get_submodule('policy'),
         frames_per_batch=config.env.step_size * config.env.n_envs,
         total_frames=config.env.n_frames,
     )
 
 
-def make_env(env_name: str, config: Config) -> Env:
-    match config.env.type:
+def make_env(env_id: str, config: Config) -> Env:
+    match config.env.name:
         case 'minigrid':
-            return MinigridEnv(env_name=env_name, device=config.device)
+            return MinigridEnv(env_id=env_id, device=config.device)
 
 
 def make_envs(config: Config) -> List[Env]:
-    return [make_env(env_name, config) for env_name in config.env.names]
+    return [make_env(env_id, config) for env_id in config.env.ids]
 
 
 def make_model(env: Env, config: Config) -> Model:
@@ -49,7 +49,7 @@ def make_opt(model: Model, config: Config) -> Optimizer:
 
 def make_replay_buffer(config: Config) -> TensorDictReplayBuffer:
     return TensorDictReplayBuffer(
-        storage=LazyTensorStorage(config.buffer_capacity),
+        storage=LazyTensorStorage(config.replay_size),
         sampler=RandomSampler(),
         batch_size=config.batch_size,
     )
