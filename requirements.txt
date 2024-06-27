@@ -1,7 +1,8 @@
 gymnasium==0.29.1
 minigrid==2.3.1
+numpy<2.0.0
 torchrl==0.3.1
 torchvision==0.17.2
 tqdm==4.66.4
-tyro==0.8.3
-wandb[media]==0.17.0
+tyro==0.8.4
+wandb[media]==0.17.2
