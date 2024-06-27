@@ -1,6 +1,5 @@
-from tensordict.nn import TensorDictModule
+from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch.distributions import OneHotCategorical
-from torch.nn import Sequential
 from torch.nn.utils import clip_grad_norm
 from torch.optim import Optimizer
 from torchrl.modules import MLP, ConvNet, ProbabilisticActor
@@ -17,11 +16,12 @@ class PPO(Model):
         super().__init__()
         # common feature extractor
         common = ConvNet(num_cells=[16, 32, 64], kernel_sizes=3, strides=2).to(device)
+        common = TensorDictModule(common, in_keys=['pixels'], out_keys=['hidden'])
         # policy network
         n_actions = env.action_spec.shape[-1]
         policy = MLP(num_cells=[1024], out_features=n_actions).to(device)
-        policy = Sequential(common, policy)
-        policy = TensorDictModule(policy, in_keys=['pixels'], out_keys=['logits'])
+        policy = TensorDictModule(policy, in_keys=['hidden'], out_keys=['logits'])
+        policy = TensorDictSequential(common, policy)
         self.policy = ProbabilisticActor(
             policy,
             in_keys=['logits'],
@@ -32,8 +32,8 @@ class PPO(Model):
         _ = self.policy(env.reset())
         # value network
         value = MLP(num_cells=[1024], out_features=1).to(device)
-        value = Sequential(common, value)
-        self.value = TensorDictModule(value, in_keys=['pixels'], out_keys=['state_value'])
+        value = TensorDictModule(value, in_keys=['hidden'], out_keys=['state_value'])
+        self.value = TensorDictSequential(common, value)
         _ = self.value(env.reset())
         # loss function
         # TODO allow config advantage & ppo loss params
