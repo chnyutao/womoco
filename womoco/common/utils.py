@@ -1,10 +1,10 @@
 from typing import Any, Dict, List
 
 from torch.optim import SGD, Adam, Optimizer
-from torchrl.collectors import MultiaSyncDataCollector
+from torchrl.collectors import MultiSyncDataCollector as DataCollector
 from torchrl.data.replay_buffers import TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import RandomSampler
-from torchrl.data.replay_buffers.storages import LazyTensorStorage
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.replay_buffers.storages import LazyMemmapStorage
 
 from womoco.config import Config
 from womoco.envs import MinigridEnv
@@ -12,8 +12,8 @@ from womoco.models import PPO
 from womoco.typing import Env, Model
 
 
-def make_collector(env: Env, model: Model, config: Config) -> MultiaSyncDataCollector:
-    return MultiaSyncDataCollector(
+def make_collector(env: Env, model: Model, config: Config) -> DataCollector:
+    return DataCollector(
         [lambda: make_env(env.id, config)] * config.env.n_envs,
         model.get_submodule('policy'),
         frames_per_batch=config.env.step_size * config.env.n_envs,
@@ -52,7 +52,7 @@ def make_opt(model: Model, config: Config) -> Optimizer:
 
 def make_replay_buffer(config: Config) -> TensorDictReplayBuffer:
     return TensorDictReplayBuffer(
-        storage=LazyTensorStorage(config.replay_size),
-        sampler=RandomSampler(),
+        storage=LazyMemmapStorage(config.replay_size),
+        sampler=SamplerWithoutReplacement(),
         batch_size=config.batch_size,
     )
