@@ -14,7 +14,6 @@ warnings.filterwarnings('ignore')
 # parse cmd flags
 config = tyro.cli(Config)
 
-
 # init envs
 envs = make_envs(config)
 
@@ -35,7 +34,8 @@ for env in envs:
     progress = tqdm(total=config.env.n_frames)
     while (data := collector.next()) is not None:
         progress.update(data.numel())
-        replay_buffer.extend(data)
+        model.prepare(data.to(config.device))
+        replay_buffer.extend(data.cpu())
         for _ in range(config.n_updates):
             samples = replay_buffer.sample().to(config.device)
             model.step(samples, opt)

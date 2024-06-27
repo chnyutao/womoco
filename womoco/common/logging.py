@@ -24,16 +24,17 @@ class Logger:
         for env in self.envs:
             data = cast(TensorDict, env.rollout(self._rollout_size, self.policy))
             frames = data['pixels'].mul(255).to(torch.uint8).detach().cpu().numpy()
-            reward = data['next', 'reward'][-1].item()
+            reward = data['next', 'episode_reward'][-1].item()
             video = wandb.Video(frames, format='gif')
             wandb.log({f'{env.id}/video': video, f'{env.id}/eval': reward}, self._step)
 
     def log(self, env: Env, data: TensorDict) -> None:
         self._step += self._step_size
         is_done = data['next', 'done']
-        reward = data['next', 'reward'][is_done].mean().nan_to_num()
-        length = data['next', 'step_count'][is_done].float().mean().nan_to_num()
-        wandb.log({f'{env.id}/reward': reward, f'{env.id}/length': length}, self._step)
+        if is_done.sum() > 0:
+            reward = data['next', 'episode_reward'][is_done].mean()
+            length = data['next', 'length'][is_done].float().mean()
+            wandb.log({f'{env.id}/reward': reward, f'{env.id}/length': length}, self._step)
         if self._step > self._eval_ckpt:
             self.evaluate()
             self._eval_ckpt += self._eval_freq
