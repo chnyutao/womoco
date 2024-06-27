@@ -1,5 +1,6 @@
-from tensordict.nn import TensorDictModule, TensorDictSequential
+from tensordict.nn import TensorDictModule
 from torch.distributions import OneHotCategorical
+from torch.nn import Sequential
 from torch.nn.utils import clip_grad_norm
 from torch.optim import Optimizer
 from torchrl.modules import MLP, ConvNet, ProbabilisticActor
@@ -16,11 +17,11 @@ class PPO(Model):
         super().__init__()
         # common feature extractor
         common = ConvNet(num_cells=[16, 32, 64], kernel_sizes=3, strides=2).to(device)
-        common = TensorDictModule(common, in_keys=['pixels'], out_keys=['hidden'])
-        # policy head
+        # policy network
         n_actions = env.action_spec.shape[-1]
         policy = MLP(num_cells=[1024], out_features=n_actions).to(device)
-        policy = TensorDictModule(policy, in_keys=['hidden'], out_keys=['logits'])
+        policy = Sequential(common, policy)
+        policy = TensorDictModule(policy, in_keys=['pixels'], out_keys=['logits'])
         self.policy = ProbabilisticActor(
             policy,
             in_keys=['logits'],
@@ -28,27 +29,28 @@ class PPO(Model):
             distribution_class=OneHotCategorical,
             return_log_prob=True,  # required for calculating ppo loss
         )
-        self.policy.module.insert(0, common)
         _ = self.policy(env.reset())
-        # value head
+        # value network
         value = MLP(num_cells=[1024], out_features=1).to(device)
-        value = TensorDictModule(value, in_keys=['hidden'], out_keys=['state_value'])
-        self.value = TensorDictSequential(common, value)
+        value = Sequential(common, value)
+        self.value = TensorDictModule(value, in_keys=['pixels'], out_keys=['state_value'])
         _ = self.value(env.reset())
         # loss function
         # TODO allow config advantage & ppo loss params
-        advantage = GAE(gamma=0.99, lmbda=0.95, value_network=self.value, average_gae=True)
+        self.advantage = GAE(gamma=0.99, lmbda=0.95, value_network=self.value)
         self.loss = ClipPPOLoss(self.policy, self.value)
-        self.loss.register_forward_pre_hook(lambda _, args: advantage(args[0]))
 
     def forward(self, x: TensorDict) -> TensorDict:
         return self.loss(x)
 
+    def prepare(self, x: TensorDict) -> None:
+        self.advantage(x)
+
     def step(self, x: TensorDict, opt: Optimizer) -> None:
         """Update model params once with graident descent."""
-        opt.zero_grad()
-        info = self.forward(x)
-        loss = info['loss_critic'] + info['loss_entropy'] + info['loss_objective']
+        data = self.forward(x)
+        loss = data['loss_objective'] + data['loss_critic'] + data['loss_entropy']
         loss.backward()
-        clip_grad_norm(self.parameters(), 1.0)
+        clip_grad_norm(self.parameters(), 0.5)
         opt.step()
+        opt.zero_grad()

@@ -6,19 +6,18 @@ from tensordict.nn import TensorDictModuleBase
 from torch.optim import Optimizer
 from torchrl.envs import TransformedEnv
 
+Device = str | torch.device
+TensorDict = TensorDictBase
+
 
 class Model(ABC, TensorDictModuleBase):
     @abstractmethod
-    def forward(self, x: TensorDictBase) -> TensorDictBase: ...
+    def prepare(self, x: TensorDict) -> None: ...
     @abstractmethod
-    def step(self, x: TensorDictBase, opt: Optimizer) -> None: ...
+    def step(self, x: TensorDict, opt: Optimizer) -> None: ...
 
 
 class Env(ABC, TransformedEnv):
     @property
     @abstractmethod
     def id(self) -> str: ...
-
-
-Device = str | torch.device
-TensorDict = TensorDictBase
