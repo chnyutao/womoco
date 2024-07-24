@@ -4,5 +4,5 @@ numpy<2.0.0
 torchrl==0.3.1
 torchvision==0.17.2
 tqdm==4.66.4
-tyro==0.8.4
-wandb[media]==0.17.2
+tyro==0.8.5
+wandb[media]==0.17.5

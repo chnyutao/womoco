@@ -1,11 +1,13 @@
 from typing import Any, Dict, List
 
-from torch.optim import SGD, Adam, Optimizer
+import wandb
+from torch.optim import Adam, Optimizer
 from torchrl.collectors import MultiSyncDataCollector as DataCollector
 from torchrl.data.replay_buffers import TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
 
+from womoco.common.logging import Logger
 from womoco.config import Config
 from womoco.envs import MinigridEnv
 from womoco.models import PPO
@@ -34,25 +36,31 @@ def make_envs(config: Config) -> List[Env]:
     return [make_env(env_id, config) for env_id in config.env.ids]
 
 
+def make_logger(config: Config) -> Logger:
+    wandb.init(config=config.as_dict(), project='womoco')
+    return Logger(config)
+
+
 def make_model(env: Env, config: Config) -> Model:
     match config.model.name:
         case 'ppo':
-            return PPO(env, config.device)
+            return PPO(env, config)
 
 
 def make_opt(model: Model, config: Config) -> Optimizer:
-    params = model.parameters()
-    kwargs: Dict[str, Any] = {'lr': config.opt.lr, 'weight_decay': config.opt.weight_decay}
+    kwargs: Dict[str, Any] = {
+        'eps': config.opt.eps,
+        'lr': config.opt.lr,
+        'weight_decay': config.opt.weight_decay,
+    }
     match config.opt.name:
         case 'Adam':
-            return Adam(params, **kwargs)
-        case 'SGD':
-            return SGD(params, **kwargs)
+            return Adam(model.parameters(), **kwargs)
 
 
 def make_replay_buffer(config: Config) -> TensorDictReplayBuffer:
     return TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(config.replay_size),
+        storage=LazyMemmapStorage(config.replay.buffer_size),
         sampler=SamplerWithoutReplacement(),
-        batch_size=config.batch_size,
+        batch_size=config.replay.batch_size,
     )

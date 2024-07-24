@@ -1,12 +1,17 @@
+import atexit
 import warnings
 
 import tyro
 from tqdm import tqdm
 
-import wandb
-
-from .common.logging import Logger
-from .common.utils import make_collector, make_envs, make_model, make_opt, make_replay_buffer
+from .common.utils import (
+    make_collector,
+    make_envs,
+    make_logger,
+    make_model,
+    make_opt,
+    make_replay_buffer,
+)
 from .config import Config
 
 warnings.filterwarnings('ignore')
@@ -17,13 +22,12 @@ config = tyro.cli(Config)
 # init envs
 envs = make_envs(config)
 
+# init logging
+logger = make_logger(config)
+
 # init model & opt
 model = make_model(envs[0], config)
 opt = make_opt(model, config)
-
-# init logging
-wandb.init(config=config.as_dict(), project='womoco')
-logger = Logger(envs, model, config)
 
 # init replay buffer
 replay_buffer = make_replay_buffer(config)
@@ -31,14 +35,13 @@ replay_buffer = make_replay_buffer(config)
 # main loop
 for env in envs:
     collector = make_collector(env, model, config)
+    atexit.register(lambda: collector.shutdown())
     progress = tqdm(total=config.env.n_frames)
-    while (data := collector.next()) is not None:
+    for data in collector:
         progress.update(data.numel())
-        model.prepare(data.to(config.device))
+        model.preprocess(data.to(config.device))
         replay_buffer.extend(data.cpu())
-        for _ in range(config.n_updates):
-            samples = replay_buffer.sample().to(config.device)
-            model.step(samples, opt)
+        for _ in range(config.opt.n_updates):
+            batch = replay_buffer.sample().to(config.device)
+            model.step(batch, opt)
         logger.log(env, data)
-    collector.shutdown()
-    progress.close()

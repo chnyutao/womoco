@@ -1,7 +1,7 @@
 import gymnasium
 from gymnasium.wrappers.pixel_observation import PixelObservationWrapper
 from torchrl.envs import GymWrapper
-from torchrl.envs.transforms import Resize, RewardSum, StepCounter, ToTensorImage
+from torchrl.envs.transforms import Resize, StepCounter, ToTensorImage
 
 from womoco.typing import Device, Env
 
@@ -16,8 +16,7 @@ class MinigridEnv(Env):
         env = GymWrapper(env, device=device)
         super().__init__(env)
         self.append_transform(ToTensorImage(in_keys=['pixels']))
-        self.append_transform(Resize(72, 72, in_keys=['pixels']))
-        self.append_transform(RewardSum(in_keys=['reward']))
+        self.append_transform(Resize(64, 64, in_keys=['pixels']))
         self.append_transform(StepCounter(step_count_key='length'))
 
     @property
