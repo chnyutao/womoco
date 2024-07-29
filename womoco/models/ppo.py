@@ -1,7 +1,7 @@
 import torch
 from tensordict.nn import TensorDictModule
+from torch import nn
 from torch.distributions import OneHotCategorical
-from torch.nn import Sequential
 from torch.nn.utils import clip_grad_norm
 from torch.optim import Optimizer
 from torchrl.modules import MLP, ActorValueOperator, ConvNet, ProbabilisticActor
@@ -18,18 +18,26 @@ class PPO(Model):
     def __init__(self, env: Env, config: Config) -> None:
         super().__init__()
         self.grad_norm = config.opt.grad_norm
+        act = getattr(nn, config.model.act)
         # common feature extractor
-        cnn = ConvNet(
-            num_cells=[32, 64, 64],
-            kernel_sizes=[8, 4, 3],
-            strides=[4, 2, 1],
+        common = nn.Sequential(
+            ConvNet(
+                num_cells=[32, 64, 64],
+                kernel_sizes=[8, 4, 3],
+                strides=[4, 2, 1],
+                activation_class=act,
+            ),
+            MLP(
+                out_features=512,
+                depth=0,
+                activation_class=act,
+                activate_last_layer=True,
+            ),
         )
-        mlp = MLP(out_features=512, activate_last_layer=True)
-        common = Sequential(cnn, mlp)
         common = TensorDictModule(common, in_keys=['pixels'], out_keys=['hidden'])
         # policy head
         n_actions = env.action_spec.shape[-1]
-        policy = MLP(out_features=n_actions)
+        policy = MLP(out_features=n_actions, depth=0)
         policy = TensorDictModule(policy, in_keys=['hidden'], out_keys=['logits'])
         policy = ProbabilisticActor(
             policy,
@@ -39,7 +47,7 @@ class PPO(Model):
             return_log_prob=True,  # required for calculating ppo loss
         )
         # value head
-        value = MLP(out_features=1)
+        value = MLP(out_features=1, depth=0)
         value = TensorDictModule(value, in_keys=['hidden'], out_keys=['state_value'])
         # actor-critic model
         model = ActorValueOperator(

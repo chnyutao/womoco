@@ -22,6 +22,8 @@ class EnvConfig:
 
 @dataclass
 class ModelConfig:
+    act: str = 'ReLU'
+    """activation function"""
     gamma: float = 0.99
     """exponential reward discount factor"""
     lmbda: float = 0.95

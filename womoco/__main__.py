@@ -4,7 +4,7 @@ import warnings
 import tyro
 from tqdm import tqdm
 
-from .common.utils import (
+from womoco.common.utils import (
     make_collector,
     make_envs,
     make_logger,
@@ -12,7 +12,7 @@ from .common.utils import (
     make_opt,
     make_replay_buffer,
 )
-from .config import Config
+from womoco.config import Config
 
 warnings.filterwarnings('ignore')
 
